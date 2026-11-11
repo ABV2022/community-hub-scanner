@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Community Hub Scanner</title>
-  <script src="https://jsdelivr.net"></script>
+  <script src="https://cloudflare.com"></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 500px; margin: auto; padding: 16px; }
     input, select, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; box-sizing: border-box; }
-    button { background: #0066cc; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-    #startCamBtn { background: #198754; }
-    #reader { width: 100%; min-height: 250px; background: #f4f4f4; border-radius: 8px; overflow: hidden; }
-    #statusMsg { color: #cc3300; font-size: 14px; margin: 6px 0; }
+    button { background: #0066cc; color: white; border: none; border-radius: 6px; font-weight: bold; }
+    #camBtn { background: #198754; }
+    #debugBox { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; font-size: 14px; margin: 8px 0; border-radius: 6px; }
+    video { width: 100%; border-radius: 8px; background: #000; display: none; }
     .item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #ddd; }
     .remove-btn { width: auto; background: #cc3300; padding: 6px 10px; margin: 0; font-size: 14px; }
   </style>
@@ -24,13 +24,13 @@
     <option value="Check In">Check In</option>
   </select>
 
-  <button id="startCamBtn" onclick="startCamera()">Start Rear Camera</button>
-  <div id="statusMsg"></div>
+  <button id="camBtn" type="button" onclick="openCamera()">1. Tap to Open Camera</button>
+  <div id="debugBox">Status: Ready. Tap the green button above.</div>
   <div id="reader"></div>
 
   <h3>Scanned Items (<span id="count">0</span>)</h3>
   <div id="scannedList"></div>
-  <button id="submitBtn" onclick="submitAll()">Submit All Items</button>
+  <button id="submitBtn" type="button" onclick="submitAll()">2. Submit All Items</button>
 
   <script>
     // REPLACE THESE WITH YOUR GOOGLE FORM DETAILS
@@ -42,28 +42,36 @@
 
     let scannedItems = {};
     let lastScanTime = 0;
-    let html5QrCode;
 
-    async function startCamera() {
-      const status = document.getElementById("statusMsg");
-      status.innerText = "Requesting camera access...";
+    function logStatus(msg) {
+      document.getElementById("debugBox").innerText = "Status: " + msg;
+    }
+
+    async function openCamera() {
+      logStatus("Checking camera support...");
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        logStatus("Camera API blocked. Make sure URL starts with https:// and is opened in Safari or Chrome (not inside WhatsApp/email).");
+        return;
+      }
 
       if (typeof Html5Qrcode === "undefined") {
-        status.innerText = "Error: Scanner library did not load. Check your internet connection.";
+        logStatus("QR library blocked by network/firewall. Try switching from Wi-Fi to mobile data.");
         return;
       }
 
       try {
-        html5QrCode = new Html5Qrcode("reader");
-        await html5QrCode.start(
-          { facingMode: "environment" }, // Automatically selects rear phone camera
+        logStatus("Asking phone for camera permission...");
+        const scanner = new Html5Qrcode("reader");
+        await scanner.start(
+          { facingMode: "environment" },
           { fps: 10, qrbox: { width: 220, height: 220 } },
           onScanSuccess
         );
-        status.innerText = "";
-        document.getElementById("startCamBtn").style.display = "none";
+        logStatus("Camera active! Point at a QR code.");
+        document.getElementById("camBtn").style.display = "none";
       } catch (err) {
-        status.innerText = "Camera blocked or unavailable: " + err;
+        logStatus("Camera error: " + err.name + " - " + err.message);
       }
     }
 
@@ -73,6 +81,7 @@
       lastScanTime = now;
 
       scannedItems[decodedText] = (scannedItems[decodedText] || 0) + 1;
+      logStatus("Scanned: " + decodedText);
       renderList();
     }
 
@@ -90,7 +99,7 @@
         listDiv.innerHTML += `
           <div class="item-row">
             <span><strong>${id}</strong> (Qty: ${qty})</span>
-            <button class="remove-btn" onclick="removeItem('${id}')">Remove</button>
+            <button class="remove-btn" type="button" onclick="removeItem('${id}')">Remove</button>
           </div>`;
       }
       document.getElementById("count").innerText = total;
@@ -121,7 +130,7 @@
       scannedItems = {};
       renderList();
       btn.disabled = false;
-      btn.innerText = "Submit All Items";
+      btn.innerText = "2. Submit All Items";
     }
   </script>
 </body>
