@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community Hub Scanner</title>
+  <script src="https://unpkg.com"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 500px; margin: auto; padding: 16px; }
+    input, select, button { width: 100%; padding: 12px; margin: 8px 0; font-size: 16px; box-sizing: border-box; }
+    button { background: #0066cc; color: white; border: none; border-radius: 6px; font-weight: bold; }
+    .item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #ddd; }
+    .remove-btn { width: auto; background: #cc3300; padding: 6px 10px; margin: 0; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Community Hub Property Book</h2>
+  <input type="text" id="userName" placeholder="Your Full Name" required>
+  <select id="actionType">
+    <option value="Check Out">Check Out</option>
+    <option value="Check In">Check In</option>
+  </select>
+
+  <div id="reader" style="width: 100%;"></div>
+  <h3>Scanned Items (<span id="count">0</span>)</h3>
+  <div id="scannedList"></div>
+  <button id="submitBtn" onclick="submitAll()">Submit All Items</button>
+
+  <script>
+    // REPLACE THESE WITH YOUR GOOGLE FORM DETAILS
+    const FORM_URL = "https://google.com";
+    const ENTRY_USER = "entry.436807205";
+    const ENTRY_ITEM = "entry.758189585";
+    const ENTRY_QTY  = "entry.644931705";
+    const ENTRY_ACT  = "entry.1868562677";
+
+    let scannedItems = {};
+    let lastScanTime = 0;
+
+    function onScanSuccess(decodedText) {
+      const now = Date.now();
+      if (now - lastScanTime < 1500) return; // Prevents accidental double-scans
+      lastScanTime = now;
+
+      scannedItems[decodedText] = (scannedItems[decodedText] || 0) + 1;
+      renderList();
+    }
+
+    function removeItem(id) {
+      delete scannedItems[id];
+      renderList();
+    }
+
+    function renderList() {
+      const listDiv = document.getElementById("scannedList");
+      listDiv.innerHTML = "";
+      let total = 0;
+      for (const [id, qty] of Object.entries(scannedItems)) {
+        total += qty;
+        listDiv.innerHTML += `
+          <div class="item-row">
+            <span><strong>${id}</strong> (Qty: ${qty})</span>
+            <button class="remove-btn" onclick="removeItem('${id}')">Remove</button>
+          </div>`;
+      }
+      document.getElementById("count").innerText = total;
+    }
+
+    async function submitAll() {
+      const user = document.getElementById("userName").value.trim();
+      const action = document.getElementById("actionType").value;
+      const btn = document.getElementById("submitBtn");
+
+      if (!user) return alert("Please enter your name.");
+      if (Object.keys(scannedItems).length === 0) return alert("Scan at least one QR code.");
+
+      btn.disabled = true;
+      btn.innerText = "Submitting...";
+
+      for (const [itemId, qty] of Object.entries(scannedItems)) {
+        const formData = new URLSearchParams();
+        formData.append(ENTRY_USER, user);
+        formData.append(ENTRY_ITEM, itemId);
+        formData.append(ENTRY_QTY, qty);
+        formData.append(ENTRY_ACT, action);
+
+        await fetch(FORM_URL, { method: "POST", mode: "no-cors", body: formData });
+      }
+
+      alert("All items logged to Community Hub Property Book!");
+      scannedItems = {};
+      renderList();
+      btn.disabled = false;
+      btn.innerText = "Submit All Items";
+    }
+
+    const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    scanner.render(onScanSuccess);
+  </script>
+</body>
+</html>
